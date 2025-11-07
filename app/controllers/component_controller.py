@@ -10,6 +10,8 @@ from app.models.memory_chips import MemoryChip
 from app.models.passive_components import PassiveComponent
 from app.models.power_management_chips import PowerManagementChip, ACDCController, DCDCConverter, LDORegulator
 from app.models.relays import Relay
+from flask import Flask, request, jsonify, Blueprint
+from app.database.redis_client import cache
 
 # app = Flask(__name__)
 # #app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost/electronic_components_db'
@@ -177,11 +179,18 @@ def get_all_components():
 
 @components_bp.route('/<int:component_id>', methods=['GET'])
 def get_component(component_id):
-    """获取特定元器件详情"""
+    """获取特定元器件详情（带缓存）"""
+    # 首先尝试从缓存获取
+    cache_key = f"component:{component_id}"
+    cached_component = cache.get(cache_key)
+
+    if cached_component:
+        return jsonify(cached_component)
     component = ElectronicComponent.query.get(component_id)
     if not component:
         return jsonify({'error': 'Component not found'}), 404
-
+    component_data = component_to_dict(component)
+    cache.set(cache_key, component_data,300)
     return jsonify(component_to_dict(component))
 
 
